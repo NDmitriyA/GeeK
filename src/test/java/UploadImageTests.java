@@ -1,8 +1,18 @@
 import io.restassured.RestAssured;
+import io.restassured.builder.MultiPartSpecBuilder;
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.builder.ResponseSpecBuilder;
+import io.restassured.filter.log.LogDetail;
 import io.restassured.http.ContentType;
+import io.restassured.internal.RequestSpecificationImpl;
+import io.restassured.mapper.ObjectMapper;
+import io.restassured.specification.MultiPartSpecification;
+import io.restassured.specification.RequestSpecification;
+import io.restassured.specification.ResponseSpecification;
 import org.apache.commons.codec.binary.Base64;
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -10,13 +20,15 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
+import static Utils.Edpoints.GET_IMAGE_HASH;
+import static Utils.Edpoints.POST_IMAGE;
 import static io.restassured.RestAssured.given;
 import static org.apache.commons.io.FileUtils.readFileToByteArray;
 
 public class UploadImageTests extends BaseTests {
     static final String INPUT_IMG_FILE_PATH = "src/test/resources/Simpson.jpg";
     static final String INPUT_64_FILE_PATH = "src/test/resources/simtoo.jpg";
-    static final String INPUT_BIGIMG_FILE_PATH ="src/test/resources/visokogo.jpg";
+    static final String INPUT_BIGIMG_FILE_PATH = "src/test/resources/visokogo.jpg";
     static byte[] fileContent;
     static Properties properties;
     static String token;
@@ -24,6 +36,12 @@ public class UploadImageTests extends BaseTests {
     static String ClientID;
     static String imageHash;
     static String uploadedImageId;
+    static ResponseSpecification responseSpecification;
+    static RequestSpecification requestSpecID;
+    static RequestSpecification requestSpecToken;
+    static MultiPartSpecification multiPartspec;
+    static MultiPartSpecification multiBigPartspec;
+
 
 
     @BeforeAll
@@ -44,25 +62,55 @@ public class UploadImageTests extends BaseTests {
 
     }
 
+    @BeforeEach
+    void beforeTest() {
+        responseSpecification = new ResponseSpecBuilder()
+
+                .expectStatusCode(200)
+                .expectBody("success", CoreMatchers.equalTo(true))
+                .build();
+
+        requestSpecID = new RequestSpecBuilder()
+                .addHeader("Authorization", ClientID)
+                .setAccept(ContentType.ANY)
+                .log(LogDetail.ALL)
+                .build();
+
+        requestSpecToken = new RequestSpecBuilder()
+                .addHeader("Authorization", token)
+                .setAccept(ContentType.ANY)
+                .log(LogDetail.ALL)
+                .build();
+
+        multiPartspec = new MultiPartSpecBuilder(new File(INPUT_IMG_FILE_PATH))
+                .controlName("image")
+                .build();
+
+        multiBigPartspec = new MultiPartSpecBuilder(new File(INPUT_BIGIMG_FILE_PATH))
+                .controlName("image")
+                .build();
+
+    }
+
     @Test
     void uploadImageTest() {
         given()
-                .multiPart("image", new File(INPUT_IMG_FILE_PATH))
-                .header("Authorization", token)
+                .multiPart(multiPartspec)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .prettyPeek()
                 .then()
-                .statusCode(200);
+                .spec(responseSpecification);
     }
 
     @Test
     void uploadBigImageTest() {
         given()
-                .multiPart("image", new File(INPUT_BIGIMG_FILE_PATH))
-                .header("Authorization", token)
+                .multiPart(multiBigPartspec)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .then()
                 .log()
                 .ifStatusCodeIsEqualTo(400)
@@ -73,17 +121,15 @@ public class UploadImageTests extends BaseTests {
     @Test
     void getImageTest() {
         given()
-                .header("Authorization", ClientID)
-                .log()
-                .all()
+                .spec(requestSpecID)
                 .when()
-                .get("image/{imageName}", imageHash)
+                .get(GET_IMAGE_HASH, imageHash)
                 .then()
                 .log()
                 .ifStatusCodeIsEqualTo(200)
                 .contentType(ContentType.JSON)
                 .body("data.id", CoreMatchers.equalTo(imageHash))
-                .body("data.link", CoreMatchers.equalTo("https://i.imgur.com/KYKvolw.jpg"));
+                .body("data.link", CoreMatchers.equalTo("https://i.imgur.com/wOnWb8U.jpg"));
     }
 
     @Test
@@ -91,9 +137,9 @@ public class UploadImageTests extends BaseTests {
         String fileContentBase64 = Base64.encodeBase64String(fileContent);
         uploadedImageId = given()
                 .multiPart("image", fileContentBase64)
-                .header("Authorization", token)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .prettyPeek()
                 .then()
                 .extract()
@@ -105,11 +151,11 @@ public class UploadImageTests extends BaseTests {
     @Test
     void uploadImagineTest() {
         given()
-                .multiPart("image", new File(INPUT_IMG_FILE_PATH))
+                .multiPart(multiPartspec)
                 .param("name", "Simpson")
-                .header("Authorization", token)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .prettyPeek()
                 .then()
                 .log()
@@ -120,11 +166,11 @@ public class UploadImageTests extends BaseTests {
     @Test
     void uploadImgtitleTest() {
         given()
-                .multiPart("image", new File(INPUT_IMG_FILE_PATH))
+                .multiPart(multiPartspec)
                 .param("title", "900x900")
-                .header("Authorization", token)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .prettyPeek()
                 .then()
                 .log()
@@ -135,11 +181,11 @@ public class UploadImageTests extends BaseTests {
     @Test
     void uploadImageDescryTest() {
         given()
-                .multiPart("image", new File(INPUT_IMG_FILE_PATH))
+                .multiPart(multiPartspec)
                 .param("description", "This is an 900x900 pixel image.")
-                .header("Authorization", token)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .prettyPeek()
                 .then()
                 .log()
@@ -150,13 +196,13 @@ public class UploadImageTests extends BaseTests {
     @Test
     void uploadAllTest() {
         given()
-                .multiPart("image", new File(INPUT_IMG_FILE_PATH))
+                .multiPart(multiPartspec)
                 .param("name", "Simpson")
                 .param("title", "800x800")
                 .param("description", "This is an 900x900 pixel image.")
-                .header("Authorization", token)
+                .spec(requestSpecToken)
                 .when()
-                .post("https://api.imgur.com/3/image")
+                .post(POST_IMAGE)
                 .prettyPeek()
                 .then()
                 .log()
