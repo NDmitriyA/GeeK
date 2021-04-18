@@ -1,11 +1,19 @@
 import io.restassured.RestAssured;
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.builder.ResponseSpecBuilder;
+import io.restassured.filter.log.LogDetail;
+import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
+import io.restassured.specification.ResponseSpecification;
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 
+import static Utils.Edpoints.IMAGE_DEL_HASH;
 import static io.restassured.RestAssured.given;
 
 public class ImageDeleteTests extends BaseTests {
@@ -13,6 +21,10 @@ public class ImageDeleteTests extends BaseTests {
     static String ClientID;
     static String imageName;
     static String imageDeleteHash;
+    static ResponseSpecification responseSpecification;
+    static RequestSpecification requestSpecID;
+    static RequestSpecification requestSpecToken;
+
 
     @BeforeAll
     static void beforeAll() throws IOException {
@@ -24,31 +36,45 @@ public class ImageDeleteTests extends BaseTests {
         imageDeleteHash = properties.getProperty("imageDeleteHash");
     }
 
+    @BeforeEach
+    void beforeTest() {
+        responseSpecification = new ResponseSpecBuilder()
+
+                .expectStatusCode(200)
+                .expectBody("data", CoreMatchers.equalTo(true))
+                .build();
+
+        requestSpecID = new RequestSpecBuilder()
+                .addHeader("Authorization", ClientID)
+                .setAccept(ContentType.ANY)
+                .log(LogDetail.ALL)
+                .build();
+
+        requestSpecToken = new RequestSpecBuilder()
+                .addHeader("Authorization", token)
+                .setAccept(ContentType.ANY)
+                .log(LogDetail.ALL)
+                .build();
+
+    }
+
     @Test
     void DeleteImageUnAuthedTest() {
         given()
-                .header("Authorization", ClientID)
-                .log()
-                .all()
+                .spec(requestSpecID)
                 .when()
-                .delete("image/{imageDeleteHash}",imageDeleteHash)
+                .delete(IMAGE_DEL_HASH,imageDeleteHash)
                 .then()
-                .log()
-                .ifStatusCodeIsEqualTo(200)
-                .body("data", CoreMatchers.equalTo(true));
+                .spec(responseSpecification);
     }
 
     @Test
     void DeleteImageAuthedTest() {
         given()
-                .header("Authorization", token)
-                .log()
-                .all()
+                .spec(requestSpecToken)
                 .when()
-                .delete("image/{imageDeleteHash}","DIjJRjt")
+                .delete(IMAGE_DEL_HASH, "DIjJRjt")
                 .then()
-                .log()
-                .ifStatusCodeIsEqualTo(200)
-                .body("data", CoreMatchers.equalTo(true));
+                .spec(responseSpecification);
     }
 }
